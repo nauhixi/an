@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>영업 대시보드</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700&display=swap');
+:root{--bg:#0a0e1a;--surf:#111827;--surf2:#1a2035;--bdr:#1e2d45;--a1:#3b82f6;--a2:#6366f1;--a3:#10b981;--a4:#f59e0b;--a5:#ec4899;--t1:#e2e8f0;--t2:#94a3b8;--t3:#475569}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Pretendard',-apple-system,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(59,130,246,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+#app{position:relative;z-index:1}
+
+/* HEADER */
+header{background:linear-gradient(135deg,#0f1729,#111827);border-bottom:1px solid var(--bdr);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:36px;height:36px;background:linear-gradient(135deg,var(--a1),var(--a2));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.logo h1{font-size:18px;font-weight:700;background:linear-gradient(135deg,#fff,var(--t2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+#hdr-status{font-size:12px;color:var(--t3);display:flex;align-items:center;gap:6px}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--a3);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.5;transform:scale(1.3)}}
+
+/* UPLOAD SCREEN */
+#upload-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 64px);gap:24px;padding:32px}
+.drop-box{border:2px dashed var(--bdr);border-radius:24px;padding:60px 80px;text-align:center;cursor:pointer;transition:all .2s;background:var(--surf);max-width:520px;width:100%}
+.drop-box:hover,.drop-box.over{border-color:var(--a1);background:rgba(59,130,246,.05);box-shadow:0 0 40px rgba(59,130,246,.1)}
+.drop-icon{font-size:52px;margin-bottom:16px}
+.drop-title{font-size:20px;font-weight:700;margin-bottom:8px}
+.drop-sub{font-size:13px;color:var(--t2);margin-bottom:24px;line-height:1.6}
+.upload-btn{display:inline-flex;align-items:center;gap:8px;padding:12px 28px;background:linear-gradient(135deg,var(--a1),var(--a2));border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:0 4px 20px rgba(59,130,246,.4);transition:opacity .15s,transform .15s}
+.upload-btn:hover{opacity:.9;transform:translateY(-1px)}
+.drop-hint{font-size:12px;color:var(--t3);margin-top:12px}
+#file-input{display:none}
+.tip-box{background:var(--surf);border:1px solid var(--bdr);border-radius:12px;padding:14px 20px;font-size:12px;color:var(--t2);max-width:520px;width:100%;line-height:1.6}
+.tip-box strong{color:var(--a3)}
+
+/* LOADING */
+#loading-screen{display:none;flex-direction:column;align-items:center;justify-content:center;min-height:calc(100vh - 64px);gap:16px}
+.spinner{width:48px;height:48px;border:3px solid var(--bdr);border-top-color:var(--a1);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* DASHBOARD */
+#dashboard{display:none;padding:28px 32px;max-width:1600px;margin:0 auto}
+
+/* FILTER */
+.filter-bar{display:flex;align-items:center;gap:10px;margin-bottom:24px;flex-wrap:wrap}
+.filter-label{font-size:12px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;font-weight:600}
+.filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--bdr);background:var(--surf);color:var(--t2);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;font-weight:500}
+.filter-btn:hover{border-color:var(--a1);color:var(--a1)}
+.filter-btn.active{background:var(--a1);border-color:var(--a1);color:#fff;box-shadow:0 0 16px rgba(59,130,246,.4)}
+
+/* CHANGE FILE BTN */
+.change-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--bdr);background:transparent;color:var(--t3);font-size:12px;font-family:inherit;cursor:pointer;transition:all .15s;margin-left:auto}
+.change-btn:hover{border-color:var(--a1);color:var(--a1)}
+
+/* KPI */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px}
+.kpi-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px 24px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.kpi-card:hover{transform:translateY(-2px);box-shadow:0 8px 32px rgba(0,0,0,.3)}
+.kpi-card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.kpi-card:nth-child(1)::before{background:linear-gradient(90deg,var(--a1),var(--a2))}
+.kpi-card:nth-child(2)::before{background:linear-gradient(90deg,var(--a3),#06b6d4)}
+.kpi-card:nth-child(3)::before{background:linear-gradient(90deg,var(--a4),#f97316)}
+.kpi-card:nth-child(4)::before{background:linear-gradient(90deg,var(--a5),#a855f7)}
+.kpi-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--t3);margin-bottom:10px}
+.kpi-value{font-size:28px;font-weight:700;letter-spacing:-1px;line-height:1;margin-bottom:8px}
+.kpi-sub{font-size:12px;color:var(--t2)}
+
+/* CHARTS */
+.chart-grid{display:grid;grid-template-columns:1.5fr 1fr;gap:16px;margin-bottom:16px}
+.chart-grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:16px}
+.chart-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px 24px}
+.chart-title{font-size:13px;font-weight:600;color:var(--t2);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
+.chart-subtitle{font-size:11px;color:var(--t3);margin-bottom:20px}
+
+/* TABLE */
+.table-card{background:var(--surf);border:1px solid var(--bdr);border-radius:16px;padding:20px 24px;margin-bottom:16px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+thead th{text-align:left;padding:8px 12px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--t3);border-bottom:1px solid var(--bdr)}
+thead th:not(:first-child){text-align:right}
+tbody tr{border-bottom:1px solid rgba(255,255,255,.03);transition:background .1s}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+tbody td{padding:10px 12px;color:var(--t1)}
+tbody td:not(:first-child){text-align:right;color:var(--t2)}
+.rank-badge{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:6px;font-size:11px;font-weight:700;margin-right:8px;background:var(--surf2);color:var(--t3)}
+.r1{background:rgba(251,191,36,.2);color:#fbbf24}.r2{background:rgba(148,163,184,.2);color:#94a3b8}.r3{background:rgba(180,120,60,.2);color:#b47c3c}
+.bar-inline{display:inline-block;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--a1),var(--a2));vertical-align:middle;margin-left:8px}
+.route-tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600}
+.t-dom{background:rgba(59,130,246,.15);color:#60a5fa}.t-jap{background:rgba(239,68,68,.15);color:#f87171}
+.t-chn{background:rgba(245,158,11,.15);color:#fbbf24}.t-twn{background:rgba(16,185,129,.15);color:#34d399}
+.t-sea{background:rgba(168,85,247,.15);color:#c084fc}.t-oce{background:rgba(6,182,212,.15);color:#22d3ee}
+.t-eur{background:rgba(236,72,153,.15);color:#f472b6}.t-usa{background:rgba(99,102,241,.15);color:#818cf8}
+.t-rus{background:rgba(251,191,36,.15);color:#fbbf24}.t-etc{background:rgba(100,116,139,.15);color:#94a3b8}
+
+@media(max-width:1200px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.chart-grid{grid-template-columns:1fr}.chart-grid-3{grid-template-columns:1fr 1fr}}
+@media(max-width:768px){#dashboard{padding:16px}.kpi-grid{grid-template-columns:1fr 1fr}.chart-grid-3{grid-template-columns:1fr}.kpi-value{font-size:22px}.drop-box{padding:40px 24px}}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">✈️</div>
+    <h1>영업 대시보드</h1>
+  </div>
+  <div id="hdr-status">
+    <span class="dot"></span>
+    <span id="hdr-text">파일을 선택해주세요</span>
+  </div>
+</header>
+
+<!-- UPLOAD SCREEN -->
+<div id="upload-screen">
+  <div class="drop-box" id="drop-box">
+    <div class="drop-icon">📊</div>
+    <div class="drop-title">엑셀 파일을 불러오세요</div>
+    <div class="drop-sub">대쉬보드.xlsx 파일을 여기에 드래그하거나<br>아래 버튼을 클릭해 선택하세요</div>
+    <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+      📂 파일 선택하기
+    </button>
+    <input type="file" id="file-input" accept=".xlsx,.xls"/>
+    <p class="drop-hint">▲ 또는 파일을 이 영역으로 드래그 앤 드롭</p>
+  </div>
+  <div class="tip-box">
+    💡 <strong>GitHub Pages에서는 자동 로드:</strong> <code>data/대쉬보드.xlsx</code> 경로에 파일이 있으면 자동으로 불러옵니다. 로컬에서 테스트할 때만 이 화면에서 파일을 선택하세요.
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <p style="color:var(--t2);font-size:14px">데이터를 처리하는 중...</p>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="filter-bar">
+    <span class="filter-label">기준 월 ▸</span>
+    <div id="month-filters"></div>
+    <button class="change-btn" onclick="resetToUpload()">📂 파일 변경</button>
+  </div>
+  <div class="kpi-grid">
+    <div class="kpi-card"><div class="kpi-label">총 발매수입</div><div class="kpi-value" id="k-rev">—</div><div class="kpi-sub" id="k-rev-s">전체 합산</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 발매건수</div><div class="kpi-value" id="k-tkt">—</div><div class="kpi-sub" id="k-tkt-s">발권 건수</div></div>
+    <div class="kpi-card"><div class="kpi-label">평균 운임 (A/R)</div><div class="kpi-value" id="k-avg">—</div><div class="kpi-sub" id="k-avg-s">건당 평균</div></div>
+    <div class="kpi-card"><div class="kpi-label">총 FSC</div><div class="kpi-value" id="k-fsc">—</div><div class="kpi-sub" id="k-fsc-s">연료 할증</div></div>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card"><div class="chart-title">노선별 발매수입</div><div class="chart-subtitle">카테고리별 매출 비교</div><canvas id="c-bar" height="220"></canvas></div>
+    <div class="chart-card"><div class="chart-title">노선 구성 비율</div><div class="chart-subtitle">수입 기준 비중</div><canvas id="c-donut" height="220"></canvas></div>
+  </div>
+  <div class="chart-grid-3">
+    <div class="chart-card"><div class="chart-title">발매월별 수입 추이</div><div class="chart-subtitle">월별 매출 트렌드</div><canvas id="c-line" height="200"></canvas></div>
+    <div class="chart-card"><div class="chart-title">Group vs Individual</div><div class="chart-subtitle">구분별 수입 비교</div><canvas id="c-class" height="200"></canvas></div>
+    <div class="chart-card"><div class="chart-title">발매시점별 건수</div><div class="chart-subtitle">구매 시점 분포</div><canvas id="c-timing" height="200"></canvas></div>
+  </div>
+  <div class="table-card">
+    <div class="chart-title" style="margin-bottom:4px">TOP 20 노선</div>
+    <div class="chart-subtitle">발매수입 기준 상위 노선</div>
+    <table><thead><tr><th>#</th><th>노선</th><th>카테고리</th><th>발매건수</th><th>발매수입</th><th>평균운임</th><th>비중</th></tr></thead>
+    <tbody id="tbl-body"></tbody></table>
+  </div>
+</div>
+
+</div><!-- #app -->
+
+<script>
+// ── UTILS ──
+const fmt = n => n>=1e12?(n/1e12).toFixed(1)+'조':n>=1e8?Math.round(n/1e8)+'억':n>=1e4?Math.round(n/1e4).toLocaleString()+'만':Math.round(n).toLocaleString();
+const fmtK = n => Math.round(n).toLocaleString();
+function excelDate(s){const d=new Date(Math.round((s-25569)*86400*1000));return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`}
+
+const LINE = {
+  '국내선':              {l:'국내선',  c:'t-dom'},
+  '일본노선':            {l:'일본',    c:'t-jap'},
+  '중국노선':            {l:'중국',    c:'t-chn'},
+  '대만노선':            {l:'대만',    c:'t-twn'},
+  '동남아노선':          {l:'동남아',  c:'t-sea'},
+  '대양주노선':          {l:'대양주',  c:'t-oce'},
+  '유럽노선':            {l:'유럽',    c:'t-eur'},
+  '미주':               {l:'미주',    c:'t-usa'},
+  '러시아/중앙아시아노선':{l:'러시아',  c:'t-rus'},
+};
+const COLORS=['#3b82f6','#ef4444','#f59e0b','#10b981','#a855f7','#06b6d4','#ec4899','#6366f1','#fbbf24'];
+const charts={};
+let allRows=[], activeMonth='all';
+
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+const baseOpts=(type)=>({
+  responsive:true, maintainAspectRatio:true,
+  plugins:{legend:{display:false},tooltip:{backgroundColor:'#1a2035',borderColor:'#1e2d45',borderWidth:1,titleColor:'#e2e8f0',bodyColor:'#94a3b8',padding:12}},
+  scales:type!=='doughnut'?{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#475569',font:{size:11}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#475569',font:{size:11},callback:v=>fmt(v)}}}:undefined
+});
+
+// ── PARSE ──
+function parseWorkbook(buf){
+  document.getElementById('upload-screen').style.display='none';
+  document.getElementById('loading-screen').style.display='flex';
+
+  setTimeout(()=>{
+    try{
+      const wb=XLSX.read(buf,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const raw=XLSX.utils.sheet_to_json(ws,{defval:0});
+
+      allRows=raw.map(r=>({
+        baseYM:  excelDate(r['년월']||0),
+        issueYM: excelDate(r['발매-년월']||0),
+        line:    r['Line']||r['line']||'',
+        route:   r['노선']||'',
+        cls:     r['Class Type']||'',
+        tkt:     Number(r['발매건수'])||0,
+        rev:     Number(r['발매수입'])||0,
+        fsc:     Number(r['FSC'])||0,
+        timing:  r['시점(MONTH)']||'그외',
+      })).filter(r=>r.tkt>0||r.rev>0);
+
+      const months=[...new Set(allRows.map(r=>r.baseYM))].sort();
+      const div=document.getElementById('month-filters');
+      div.innerHTML='';
+      const ab=document.createElement('button');
+      ab.className='filter-btn active'; ab.textContent='전체'; ab.dataset.val='all';
+      ab.onclick=()=>setFilter('all'); div.appendChild(ab);
+      months.forEach(m=>{
+        const b=document.createElement('button');
+        b.className='filter-btn'; b.textContent=m; b.dataset.val=m;
+        b.onclick=()=>setFilter(m); div.appendChild(b);
+      });
+
+      document.getElementById('hdr-text').textContent=`${allRows.length.toLocaleString()}행 · ${months.length}개월`;
+      document.getElementById('loading-screen').style.display='none';
+      document.getElementById('dashboard').style.display='block';
+      renderAll();
+    }catch(e){
+      document.getElementById('loading-screen').innerHTML=`<p style="color:#ef4444">파싱 오류: ${e.message}</p>`;
+    }
+  },50);
+}
+
+// ── RENDER ──
+function renderAll(){
+  const rows=activeMonth==='all'?allRows:allRows.filter(r=>r.baseYM===activeMonth);
+  renderKPI(rows); renderBar(rows); renderDonut(rows);
+  renderLine(rows); renderClass(rows); renderTiming(rows); renderTable(rows);
+}
+
+function renderKPI(rows){
+  const rev=rows.reduce((s,r)=>s+r.rev,0);
+  const tkt=rows.reduce((s,r)=>s+r.tkt,0);
+  const fsc=rows.reduce((s,r)=>s+r.fsc,0);
+  const avg=tkt>0?rev/tkt:0;
+  document.getElementById('k-rev').textContent='₩'+fmt(rev);
+  document.getElementById('k-tkt').textContent=fmtK(tkt)+'건';
+  document.getElementById('k-avg').textContent='₩'+fmtK(avg);
+  document.getElementById('k-fsc').textContent='₩'+fmt(fsc);
+  const routes=[...new Set(rows.map(r=>r.route))].length;
+  document.getElementById('k-rev-s').textContent=routes+'개 노선';
+  document.getElementById('k-tkt-s').textContent='전체 발권';
+  document.getElementById('k-avg-s').textContent='수입÷건수';
+  document.getElementById('k-fsc-s').textContent='국내선 포함';
+}
+
+function renderBar(rows){
+  const map={};
+  rows.forEach(r=>{if(!map[r.line])map[r.line]=0;map[r.line]+=r.rev;});
+  const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  const labels=sorted.map(([k])=>LINE[k]?.l||k);
+  const data=sorted.map(([,v])=>v);
+  const colors=sorted.map((_,i)=>COLORS[i%COLORS.length]);
+  destroyChart('bar');
+  charts['bar']=new Chart(document.getElementById('c-bar').getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors.map(c=>c+'99'),borderColor:colors,borderWidth:2,borderRadius:6,borderSkipped:false}]},
+    options:{...baseOpts('bar'),plugins:{...baseOpts('bar').plugins,tooltip:{...baseOpts('bar').plugins.tooltip,callbacks:{label:c=>'₩'+fmt(c.parsed.y)}}}}
+  });
+}
+
+function renderDonut(rows){
+  const map={};
+  rows.forEach(r=>{if(!map[r.line])map[r.line]=0;map[r.line]+=r.rev;});
+  const sorted=Object.entries(map).sort((a,b)=>b[1]-a[1]);
+  destroyChart('donut');
+  charts['donut']=new Chart(document.getElementById('c-donut').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:sorted.map(([k])=>LINE[k]?.l||k),datasets:[{data:sorted.map(([,v])=>v),backgroundColor:COLORS.map(c=>c+'cc'),borderColor:'#111827',borderWidth:3,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:true,cutout:'62%',plugins:{legend:{display:true,position:'right',labels:{color:'#94a3b8',font:{size:11},padding:8,boxWidth:12}},tooltip:{backgroundColor:'#1a2035',borderColor:'#1e2d45',borderWidth:1,callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.label}: ${((c.parsed/t)*100).toFixed(1)}%`}}}}}
+  });
+}
+
+function renderLine(rows){
+  const map={};
+  rows.forEach(r=>{if(!map[r.issueYM])map[r.issueYM]=0;map[r.issueYM]+=r.rev;});
+  const sorted=Object.entries(map).sort((a,b)=>a[0].localeCompare(b[0]));
+  destroyChart('line');
+  const ctx=document.getElementById('c-line').getContext('2d');
+  const grad=ctx.createLinearGradient(0,0,0,200);
+  grad.addColorStop(0,'rgba(59,130,246,.3)'); grad.addColorStop(1,'rgba(59,130,246,.02)');
+  charts['line']=new Chart(ctx,{
+    type:'line',
+    data:{labels:sorted.map(([k])=>k),datasets:[{data:sorted.map(([,v])=>v),fill:true,backgroundColor:grad,borderColor:'#3b82f6',borderWidth:2,pointBackgroundColor:'#3b82f6',pointRadius:4,tension:.4}]},
+    options:{...baseOpts('line'),plugins:{...baseOpts('line').plugins,tooltip:{...baseOpts('line').plugins.tooltip,callbacks:{label:c=>'₩'+fmt(c.parsed.y)}}}}
+  });
+}
+
+function renderClass(rows){
+  const map={Group:0,Individual:0};
+  rows.forEach(r=>{if(r.cls in map)map[r.cls]+=r.rev;});
+  destroyChart('class');
+  charts['class']=new Chart(document.getElementById('c-class').getContext('2d'),{
+    type:'doughnut',
+    data:{labels:['Group','Individual'],datasets:[{data:[map.Group,map.Individual],backgroundColor:['rgba(99,102,241,.8)','rgba(16,185,129,.8)'],borderColor:'#111827',borderWidth:3,hoverOffset:8}]},
+    options:{responsive:true,maintainAspectRatio:true,cutout:'55%',plugins:{legend:{display:true,position:'bottom',labels:{color:'#94a3b8',font:{size:11},padding:12,boxWidth:12}},tooltip:{backgroundColor:'#1a2035',borderColor:'#1e2d45',borderWidth:1,callbacks:{label:c=>{const t=c.dataset.data.reduce((a,b)=>a+b,0);return ` ${c.label}: ${((c.parsed/t)*100).toFixed(1)}%`}}}}}
+  });
+}
+
+function renderTiming(rows){
+  const map={};
+  rows.forEach(r=>{if(!map[r.timing])map[r.timing]=0;map[r.timing]+=r.tkt;});
+  const ORDER=['당월','1개월','2개월','3개월','그외'];
+  const labels=ORDER.filter(k=>map[k]!==undefined);
+  const data=labels.map(k=>map[k]||0);
+  const C=['#3b82f6','#10b981','#f59e0b','#ec4899','#6b7280'];
+  destroyChart('timing');
+  charts['timing']=new Chart(document.getElementById('c-timing').getContext('2d'),{
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:C.map(c=>c+'cc'),borderColor:C,borderWidth:2,borderRadius:6,borderSkipped:false}]},
+    options:{...baseOpts('bar'),plugins:{...baseOpts('bar').plugins,tooltip:{...baseOpts('bar').plugins.tooltip,callbacks:{label:c=>fmtK(c.parsed.y)+'건'}}}}
+  });
+}
+
+function renderTable(rows){
+  const map={};
+  rows.forEach(r=>{
+    const key=r.route+'|'+r.line;
+    if(!map[key])map[key]={route:r.route,line:r.line,rev:0,tkt:0};
+    map[key].rev+=r.rev; map[key].tkt+=r.tkt;
+  });
+  const total=rows.reduce((s,r)=>s+r.rev,0);
+  const sorted=Object.values(map).sort((a,b)=>b.rev-a.rev).slice(0,20);
+  document.getElementById('tbl-body').innerHTML=sorted.map((d,i)=>{
+    const pct=total>0?((d.rev/total)*100).toFixed(1):'0';
+    const avg=d.tkt>0?Math.round(d.rev/d.tkt):0;
+    const bw=Math.round((d.rev/sorted[0].rev)*80);
+    const li=LINE[d.line]||{l:d.line,c:'t-etc'};
+    const rc=i<3?'r'+(i+1):'';
+    return `<tr><td><span class="rank-badge ${rc}">${i+1}</span></td><td><strong>${d.route}</strong><span class="bar-inline" style="width:${bw}px"></span></td><td><span class="route-tag ${li.c}">${li.l}</span></td><td>${fmtK(d.tkt)}건</td><td>₩${fmt(d.rev)}</td><td>₩${fmtK(avg)}</td><td>${pct}%</td></tr>`;
+  }).join('');
+}
+
+function setFilter(val){
+  activeMonth=val;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.dataset.val===val));
+  renderAll();
+}
+
+function resetToUpload(){
+  document.getElementById('dashboard').style.display='none';
+  document.getElementById('upload-screen').style.display='flex';
+  document.getElementById('hdr-text').textContent='파일을 선택해주세요';
+  document.getElementById('file-input').value='';
+}
+
+// ── FILE INPUT ──
+document.getElementById('file-input').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>parseWorkbook(ev.target.result);
+  r.readAsArrayBuffer(f);
+});
+
+// ── DRAG & DROP ──
+const db=document.getElementById('drop-box');
+db.addEventListener('dragover',e=>{e.preventDefault();db.classList.add('over');});
+db.addEventListener('dragleave',()=>db.classList.remove('over'));
+db.addEventListener('drop',e=>{
+  e.preventDefault(); db.classList.remove('over');
+  const f=e.dataTransfer.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>parseWorkbook(ev.target.result);
+  r.readAsArrayBuffer(f);
+});
+
+// ── AUTO LOAD (GitHub Pages) ──
+(async()=>{
+  try{
+    const res=await fetch('./data/대쉬보드.xlsx?t='+Date.now());
+    if(!res.ok)throw new Error();
+    const buf=await res.arrayBuffer();
+    parseWorkbook(buf);
+  }catch{
+    // 로컬: 파일 선택 화면 유지 (이미 보임)
+    document.getElementById('hdr-text').textContent='파일을 선택해주세요';
+  }
+})();
+</script>
+</body>
+</html>
